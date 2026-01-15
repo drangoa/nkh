@@ -12,7 +12,7 @@ api_id = int(os.getenv('API_ID'))
 api_hash = os.getenv('API_HASH')
 session_string = os.getenv('SESSION_STRING')
 DB_FILE = 'database.json'
-
+TARGET_LINK = 'https://t.me/+pfqNFy_tVE4yMjNi'
 # استخدام StringSession بدلاً من الملف العادي ليعمل على الاستضافة السحابية
 client = TelegramClient(StringSession(session_string), api_id, api_hash)
 
@@ -32,6 +32,10 @@ def save_db():
 ignore_list = {}
 allowed_ranks = ["مدير", "منشئ", "المالك", "𝗢𝗪𝗡𝗘𝗥 🎖️"]
 disallowed_ranks = ["العضو", "ادمن", "الادمن"]
+
+async def is_target_chat(event):
+    try:
+        chat = await event.get_chat()
 
 async def check_pending_tasks():
     """مراقبة المهام وإعادة الرتب مع اليوزر تلقائياً"""
