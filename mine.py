@@ -12,7 +12,11 @@ api_hash = 'cbe6050a5ec9111b133669fa33757d50'
 session_name = 'my_session'
 DB_FILE = 'database.json'
 
-client = TelegramClient(session_name, api_id, api_hash)
+from telethon.sessions import StringSession
+
+# استدعاء الجلسة من متغيرات البيئة
+session_string = os.getenv('SESSION_STRING')
+client = TelegramClient(StringSession(session_string), api_id, api_hash)
 
 # نظام حفظ واستعادة البيانات
 if os.path.exists(DB_FILE):
