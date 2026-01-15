@@ -5,23 +5,23 @@ import time
 from telethon import TelegramClient, events, functions, types
 from telethon.tl.functions.channels import EditAdminRequest, EditBannedRequest, GetParticipantRequest
 from telethon.tl.types import ChatAdminRights, ChatBannedRights, ChannelParticipantAdmin, ChannelParticipantCreator
-
-# بياناتك الخاصة يا ساترن
-api_id = 33053408
-api_hash = 'cbe6050a5ec9111b133669fa33757d50'
-session_name = 'my_session'
-DB_FILE = 'database.json'
-
 from telethon.sessions import StringSession
 
-# استدعاء الجلسة من متغيرات البيئة
+# جلب البيانات من Secrets لضمان الأمان والاستمرارية
+api_id = int(os.getenv('API_ID'))
+api_hash = os.getenv('API_HASH')
 session_string = os.getenv('SESSION_STRING')
+DB_FILE = 'database.json'
+
+# استخدام StringSession بدلاً من الملف العادي ليعمل على الاستضافة السحابية
 client = TelegramClient(StringSession(session_string), api_id, api_hash)
 
 # نظام حفظ واستعادة البيانات
 if os.path.exists(DB_FILE):
-    with open(DB_FILE, 'r') as f:
-        active_cases = json.load(f)
+    try:
+        with open(DB_FILE, 'r') as f:
+            active_cases = json.load(f)
+    except: active_cases = {}
 else:
     active_cases = {}
 
@@ -43,8 +43,6 @@ async def check_pending_tasks():
                 try:
                     chat_id, victim_id = int(data['chat_id']), int(data['victim_id'])
                     victim_user = data.get('victim_user', '')
-                    
-                    # صياغة أمر الرفع مع اليوزر
                     rank_to_up = data['original_rank'] if data['original_rank'] not in disallowed_ranks else "مميز"
                     up_cmd = f"رفع {rank_to_up} {victim_user}"
                     
@@ -66,11 +64,9 @@ async def start_verification(event):
     """دالة التحقق بانتظار رد البوت"""
     sender_id = event.sender_id
     chat_id = event.chat_id
-    
     if sender_id in ignore_list and time.time() < ignore_list[sender_id]: return None
     if not event.is_reply: return None
 
-    print(f"[*] جاري فحص رتبة {sender_id}...")
     await event.respond("مسح رتب التسلية")
     await asyncio.sleep(2)
     await event.reply("رتبته")
@@ -85,17 +81,14 @@ async def start_verification(event):
                 bot_response_future.set_result(bot_event.text)
 
     try:
-        rank_text = await asyncio.wait_for(bot_response_future, timeout=60)
+        rank_text = await asyncio.wait_for(bot_response_future, timeout=30)
         client.remove_event_handler(temp_bot_handler)
-        
         if any(dr in rank_text for dr in disallowed_ranks):
             ignore_list[sender_id] = time.time() + 3600
             return None
-        
         for r in allowed_ranks:
             if r in rank_text: return r
-        return "العضو" # افتراضي
-
+        return "العضو"
     except:
         client.remove_event_handler(temp_bot_handler)
         return None
@@ -104,13 +97,11 @@ async def start_verification(event):
 async def warning_handler(event):
     original_rank = await start_verification(event)
     if not original_rank: return
-    
     reply_msg = await event.get_reply_message()
     victim = await client.get_entity(reply_msg.sender_id)
     v_user = f"@{victim.username}" if victim.username else f"[{victim.id}](tg://user?id={victim.id})"
     
-    report = f"--- تقرير مخالفة جديد ---\nID: {victim.id}\nName: {victim.first_name}\nUser: {v_user}\nMessage: {reply_msg.text}"
-    await client.send_message("me", report)
+    await client.send_message("me", f"⚠️ مخالفة جديدة من: {v_user}")
 
     old_rights = None
     try:
@@ -138,13 +129,11 @@ async def warning_handler(event):
 async def mute_handler(event):
     original_rank = await start_verification(event)
     if not original_rank: return
-
     reply_msg = await event.get_reply_message()
     victim = await client.get_entity(reply_msg.sender_id)
     v_user = f"@{victim.username}" if victim.username else f"[{victim.id}](tg://user?id={victim.id})"
     
-    report = f"--- تقرير مخالفة جديد ---\nID: {victim.id}\nName: {victim.first_name}\nUser: {v_user}\nMessage: {reply_msg.text}"
-    await client.send_message("me", report)
+    await client.send_message("me", f"🔇 كتم جديد لـ: {v_user}")
 
     await reply_msg.reply("تكم")
     await asyncio.sleep(2)
@@ -177,8 +166,18 @@ async def validator(event):
                 save_db()
                 break
 
-print("--- ساترن: نظام الرفع باليوزر مفعّل الآن ---")
-client.loop.create_task(check_pending_tasks())
-client.start()
-client.run_until_disconnected()
+async def start_bot():
+    await client.start()
+    print("--- ساترن: نظام الرفع باليوزر مفعّل الآن ---")
+    client.loop.create_task(check_pending_tasks())
+    
+    # خدعة الاستمرار لـ GitHub Actions: تشغيل لمدة 5 دقائق ثم إغلاق نظيف
+    # لكي يبدأ الـ Workflow التالي فوراً ويحل محله
+    try:
+        await asyncio.wait_for(client.run_until_disconnected(), timeout=280)
+    except asyncio.TimeoutError:
+        print("--- إعادة تشغيل دورية للحفاظ على الاتصال ---")
+        await client.disconnect()
 
+if __name__ == '__main__':
+    client.loop.run_until_complete(start_bot())
