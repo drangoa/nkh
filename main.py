@@ -168,16 +168,14 @@ async def validator(event):
 
 async def start_bot():
     await client.start()
+    # تجربة: سيرسل الحساب رسالة لنفسه (Saved Messages) بمجرد التشغيل
+    await client.send_message("me", "تم تشغيل ساترن بنجاح وأنا أسمعك الآن!")
+    
     print("--- ساترن: نظام الرفع باليوزر مفعّل الآن ---")
     client.loop.create_task(check_pending_tasks())
     
-    # خدعة الاستمرار لـ GitHub Actions: تشغيل لمدة 5 دقائق ثم إغلاق نظيف
-    # لكي يبدأ الـ Workflow التالي فوراً ويحل محله
     try:
         await asyncio.wait_for(client.run_until_disconnected(), timeout=280)
     except asyncio.TimeoutError:
         print("--- إعادة تشغيل دورية للحفاظ على الاتصال ---")
         await client.disconnect()
-
-if __name__ == '__main__':
-    client.loop.run_until_complete(start_bot())
